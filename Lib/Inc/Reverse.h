@@ -43,14 +43,10 @@ extern volatile uint8_t data_ready_y ;
 extern uint8_t crc_error;
 
 typedef struct {
-    uint32_t angle;    uint8_t  crc5;
+    uint32_t angle;
+    uint8_t  crc5;
     uint8_t  err;
 } AngleResult;
-
-typedef struct {
-    uint32_t angle;    uint8_t  crc5;
-    uint8_t  err;
-} AngleResult_Y;
 
 AngleResult Angle_Data_Processing(uint8_t *buffer);
 float get_pos(void);

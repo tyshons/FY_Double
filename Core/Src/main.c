@@ -56,8 +56,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t txBuffer[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-uint8_t rxBuffer[DATA_SEQUENCE_SIZE];
+uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
+uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
+uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
+uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
 volatile uint8_t spi_xfer_done_x = 1;
 volatile uint8_t spi_xfer_done_y = 1;
 volatile uint8_t sck_edge_count_x = 0;
