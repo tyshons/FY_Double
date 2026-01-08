@@ -10,10 +10,6 @@
 
 AngleResult res_x;
 AngleResult res_y;
-uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
-uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
 
 float get_pos(void) {
     float pos = 0;

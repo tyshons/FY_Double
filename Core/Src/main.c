@@ -39,13 +39,17 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+  float in_prev[3];
+  float out_prev[3];
+} pid_state_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DATA_SEQUENCE_SIZE 6
 #define POSITION_UPDATE_INTERVAL_S 0.001f
+#define CONTROL_PERIOD 0.001f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,7 +75,7 @@ volatile uint8_t data_ready_y = 0;
 float last_angle_sp = 0.0f;
 float current_angle_sp = 0.0f;
 float h_speed_sp = 0.0f;
-float given_sp = 125.0f;           // 水平给定角度
+float given_sp = 125.0f;
 float speed_given_sp = 0.0f;
 float position_error_sp = 0.0f;
 
@@ -79,7 +83,7 @@ float position_error_sp = 0.0f;
 float last_angle_el = 0.0f;
 float current_angle_el = 0.0f;
 float h_speed_el = 0.0f;
-float given_el = 0.0f;             // 俯仰给定角度
+float given_el = 0.0f;
 float speed_given_el = 0.0f;
 float position_error_el = 0.0f;
 
@@ -91,7 +95,10 @@ extern uint8_t g_run_flag;
 float speed_num[4], speed_den[4];
 float pos_num[4], pos_den[4];
 
-#define CONTROL_PERIOD 0.001f
+pid_state_t pos_pid_sp = {0}; // 水平轴位置环状态
+pid_state_t pos_pid_el = {0}; // 俯仰轴位置环状态
+pid_state_t spd_pid_sp = {0}; // 水平轴速度环状态
+pid_state_t spd_pid_el = {0}; // 俯仰轴速度环状态
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,8 +106,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time);
 float get_signed_angle_error(float target_angle, float current_angle);
-float speed_pid(float speed_given, float h_speed);
-float position_pid(float position_error);
+float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4]);
+float position_pid(float error, pid_state_t* state, const float num[4], const float den[4]);
 void UART1_DATA_PRO(void);
 float get_pos_pitch(void); // 新增：获取俯仰角度
 /* USER CODE END PFP */
@@ -292,14 +299,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         // 水平轴控制
     position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
-    speed_given_sp = position_pid(position_error_sp);
-    float pidout_sp = speed_pid(speed_given_sp, h_speed_sp);
+    speed_given_sp = position_pid(position_error_sp,&pos_pid_sp, pos_num, pos_den);
+    float pidout_sp = speed_pid(speed_given_sp - h_speed_sp, &spd_pid_sp, speed_num, speed_den);
     motor_pwm_set(1, pidout_sp); // motor_id=1: 水平
 
         // 俯仰轴控制
     position_error_el = get_signed_angle_error(given_el, current_angle_el);
-    speed_given_el = position_pid(position_error_el);
-    float pidout_el = speed_pid(speed_given_el, h_speed_el);
+    speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
+    float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
     motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
 
         // 打印水平轴状态
@@ -308,61 +315,56 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
-float speed_pid(float speed_given, float h_speed)
+float position_pid(float error, pid_state_t* state, const float num[4], const float den[4])
 {
-  static float speed_pid_in_prev[3] = {0.0f, 0.0f, 0.0f};
-  static float speed_pidout_prev[3] = {0.0f, 0.0f, 0.0f};
+  float in = error;
+  float out =
+      num[0] * in +
+      num[1] * state->in_prev[0] +
+      num[2] * state->in_prev[1] +
+      num[3] * state->in_prev[2] +
+      den[1] * state->out_prev[0] +
+      den[2] * state->out_prev[1] +
+      den[3] * state->out_prev[2];
 
-  float speed_pid_in = speed_given - h_speed;
+  // 更新历史
+  state->in_prev[2] = state->in_prev[1];
+  state->in_prev[1] = state->in_prev[0];
+  state->in_prev[0] = in;
 
-  float speed_pidout =   speed_num[0] * speed_pid_in +
-                         speed_num[1] * speed_pid_in_prev[0] +
-                         speed_num[2] * speed_pid_in_prev[1] +
-                         speed_num[3] * speed_pid_in_prev[2] +
-                         speed_den[1] * speed_pidout_prev[0] +
-                         speed_den[2] * speed_pidout_prev[1] +
-                         speed_den[3] * speed_pidout_prev[2];
+  state->out_prev[2] = state->out_prev[1];
+  state->out_prev[1] = state->out_prev[0];
+  state->out_prev[0] = out;
 
-    // 输出限幅（±8400 对应 PWM 占空比）
-  if (speed_pidout > 8400.0f) speed_pidout = 8400.0f;
-  if (speed_pidout < -8400.0f) speed_pidout = -8400.0f;
-
-    // 更新历史
-  speed_pid_in_prev[2] = speed_pid_in_prev[1];
-  speed_pid_in_prev[1] = speed_pid_in_prev[0];
-  speed_pid_in_prev[0] = speed_pid_in;
-
-  speed_pidout_prev[2] = speed_pidout_prev[1];
-  speed_pidout_prev[1] = speed_pidout_prev[0];
-  speed_pidout_prev[0] = speed_pidout;
-
-  return speed_pidout;
+  return out;
 }
 
-float position_pid(float position_error)
+float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4])
 {
-  static float pos_pid_in_prev[3] = {0.0f, 0.0f, 0.0f};
-  static float pos_pidout_prev[3] = {0.0f, 0.0f, 0.0f};
+  float in = speed_error;
+  float out =
+      num[0] * in +
+      num[1] * state->in_prev[0] +
+      num[2] * state->in_prev[1] +
+      num[3] * state->in_prev[2] +
+      den[1] * state->out_prev[0] +
+      den[2] * state->out_prev[1] +
+      den[3] * state->out_prev[2];
 
-  float pos_pid_in = position_error;
+  // 输出限幅（±8400 对应 PWM）
+  if (out > 8400.0f) out = 8400.0f;
+  if (out < -8400.0f) out = -8400.0f;
 
-  float pos_pidout =   pos_num[0] * pos_pid_in +
-                       pos_num[1] * pos_pid_in_prev[0] +
-                       pos_num[2] * pos_pid_in_prev[1] +
-                       pos_num[3] * pos_pid_in_prev[2] +
-                       pos_den[1] * pos_pidout_prev[0] +
-                       pos_den[2] * pos_pidout_prev[1] +
-                       pos_den[3] * pos_pidout_prev[2];
+  // 更新历史
+  state->in_prev[2] = state->in_prev[1];
+  state->in_prev[1] = state->in_prev[0];
+  state->in_prev[0] = in;
 
-  pos_pid_in_prev[2] = pos_pid_in_prev[1];
-  pos_pid_in_prev[1] = pos_pid_in_prev[0];
-  pos_pid_in_prev[0] = pos_pid_in;
+  state->out_prev[2] = state->out_prev[1];
+  state->out_prev[1] = state->out_prev[0];
+  state->out_prev[0] = out;
 
-  pos_pidout_prev[2] = pos_pidout_prev[1];
-  pos_pidout_prev[1] = pos_pidout_prev[0];
-  pos_pidout_prev[0] = pos_pidout;
-
-  return pos_pidout;
+  return out;
 }
 
 void UART1_DATA_PRO(void)
