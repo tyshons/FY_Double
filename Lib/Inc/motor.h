@@ -6,8 +6,10 @@
 #define MOTOR_H
 #include "main.h"
 
-#define ENABLE_MOTOR    HAL_GPIO_WritePin(Shutdown2_GPIO_Port, Shutdown2_Pin, GPIO_PIN_SET)
-#define DISABLE_MOTOR   HAL_GPIO_WritePin(Shutdown2_GPIO_Port, Shutdown2_Pin, GPIO_PIN_RESET)
+#define ENABLE_MOTOR_0    HAL_GPIO_WritePin(Shutdown2_GPIO_Port, Shutdown2_Pin, GPIO_PIN_SET)
+#define DISABLE_MOTOR_0   HAL_GPIO_WritePin(Shutdown2_GPIO_Port, Shutdown2_Pin, GPIO_PIN_RESET)
+#define ENABLE_MOTOR_1    HAL_GPIO_WritePin(Shutdown1_GPIO_Port, Shutdown1_Pin, GPIO_PIN_SET)
+#define DISABLE_MOTOR_1   HAL_GPIO_WritePin(Shutdown1_GPIO_Port, Shutdown1_Pin, GPIO_PIN_RESET)
 
 typedef struct
 {
