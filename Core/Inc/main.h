@@ -59,6 +59,10 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define EN0_Pin GPIO_PIN_10
 #define EN0_GPIO_Port GPIOD
+#define Shutdown2_Pin GPIO_PIN_11
+#define Shutdown2_GPIO_Port GPIOD
+#define Shutdown1_Pin GPIO_PIN_9
+#define Shutdown1_GPIO_Port GPIOC
 #define EN1_Pin GPIO_PIN_11
 #define EN1_GPIO_Port GPIOA
 #define LED0_Pin GPIO_PIN_0

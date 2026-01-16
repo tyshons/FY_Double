@@ -16,10 +16,10 @@
   *
   ******************************************************************************
   */
+#include <string.h>
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "usart.h"
-#include <string.h>
 
 /* USER CODE BEGIN 0 */
 uint8_t  g_usart_rx_buf[USART_REC_LEN];

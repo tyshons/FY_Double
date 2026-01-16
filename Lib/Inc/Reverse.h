@@ -42,12 +42,17 @@ extern volatile uint8_t data_ready_x ;
 extern volatile uint8_t data_ready_y ;
 extern uint8_t crc_error;
 
+extern volatile float latest_angle_sp; // 水平轴最新有效角度
+extern volatile float latest_angle_el; // 俯仰轴最新有效角度
+extern volatile uint8_t angle_valid_sp;   // 角度有效
+extern volatile uint8_t angle_valid_el;
+
 typedef struct {
     uint32_t angle;
     uint8_t  crc5;
     uint8_t  err;
 } AngleResult;
 
+void Angle_Update_Task(void);
 AngleResult Angle_Data_Processing(uint8_t *buffer);
-float get_pos(void);
 #endif //REVERSE_H
