@@ -63,7 +63,7 @@ typedef struct {
 uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
 uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
 volatile uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
-uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
+volatile uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
 volatile uint8_t spi_xfer_done_x = 1;
 volatile uint8_t spi_xfer_done_y = 1;
 volatile uint8_t sck_edge_count_x = 0;
@@ -72,6 +72,7 @@ volatile uint8_t data_ready_x = 0;
 volatile uint8_t data_ready_y = 0;
 
 volatile float pos_x=0;
+volatile float pos_y=0;
 
 uint8_t biaozhi = 0;
 
@@ -87,7 +88,7 @@ float position_error_sp = 0.0f;
 float last_angle_el = 0.0f;
 float current_angle_el = 0.0f;
 float h_speed_el = 0.0f;
-float given_el = 0.0f;
+float given_el = 75.0f;
 float speed_given_el = 0.0f;
 float position_error_el = 0.0f;
 
@@ -296,27 +297,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 
         // 获取当前角度
-    current_angle_sp = get_pos_x();
-    //current_angle_el = get_pos_y();
-    int deg = (int)current_angle_sp;
-    int dec = (int)((current_angle_sp - deg) * 1000);
+    //current_angle_sp = get_pos_x();
+    current_angle_el = get_pos_y();
+    int deg = (int)current_angle_el;
+    int dec = (int)((current_angle_el - deg) * 1000);
     printf("Angle: %d.%d\r\n", deg, dec);
 
         // 速度估计（deg/s）
-    h_speed_sp = Updatespeed(current_angle_sp, &last_angle_sp, &last_time_sp);
+    //h_speed_sp = Updatespeed(current_angle_sp, &last_angle_sp, &last_time_sp);
     //h_speed_el = Updatespeed(current_angle_el, &last_angle_el, &last_time_el);
 
         // 水平轴控制
-    position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
-    speed_given_sp = position_pid(position_error_sp,&pos_pid_sp, pos_num, pos_den);
-    float pidout_sp = speed_pid(speed_given_sp - h_speed_sp, &spd_pid_sp, speed_num, speed_den);
-    motor_pwm_set(1, pidout_sp); // motor_id=1: 水平
+    //position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
+    //speed_given_sp = position_pid(position_error_sp,&pos_pid_sp, pos_num, pos_den);
+    //float pidout_sp = speed_pid(speed_given_sp - h_speed_sp, &spd_pid_sp, speed_num, speed_den);
+    //motor_pwm_set(1, pidout_sp); // motor_id=1: 水平
 
         // 俯仰轴控制
-   // position_error_el = get_signed_angle_error(given_el, current_angle_el);
-   // speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
-   // float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
-    //motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
+    position_error_el = get_signed_angle_error(given_el, current_angle_el);
+    speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
+    float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
+    motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
 
         // 打印水平轴状态
     //float wgeiding_sp = (current_angle_sp > 180) ? current_angle_sp - 360.0f : current_angle_sp;

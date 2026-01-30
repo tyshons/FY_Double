@@ -354,18 +354,18 @@ void USART1_IRQHandler(void)
 void TIM5_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM5_IRQn 0 */
-  if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_CC1) != RESET)
+  if (__HAL_TIM_GET_FLAG(&htim5, TIM_FLAG_CC1) != RESET)
   {
-    if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_CC1) != RESET)
+    if (__HAL_TIM_GET_IT_SOURCE(&htim5, TIM_IT_CC1) != RESET)
     {
-      __HAL_TIM_CLEAR_IT(&htim2, TIM_IT_CC1);
+      __HAL_TIM_CLEAR_IT(&htim5, TIM_IT_CC1);
 
-      sck_edge_count_x++;
+      sck_edge_count_y++;
 
-      if (sck_edge_count_x == SCK_EDGES_TO_CAPTURE) {
+      if (sck_edge_count_y == 12) {
         // 捕获到10个上升沿后拉低EN（切换为接收方向）
-        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET);
-        sck_edge_count_x = 0;
+        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET);
+        sck_edge_count_y = 0;
       }
     }
   }

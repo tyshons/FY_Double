@@ -33,7 +33,7 @@ static const unsigned char  BitReverseTable256[] =
 extern uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] ;
 extern uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] ;
 extern volatile uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] ;
-extern uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] ;
+extern volatile uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] ;
 extern volatile uint8_t spi_xfer_done_x ;
 extern volatile uint8_t spi_xfer_done_y ;
 extern volatile uint8_t sck_edge_count_x ; // SCK上升沿计数器
@@ -48,6 +48,7 @@ extern volatile float latest_angle_el; // 俯仰轴最新有效角度
 extern volatile uint8_t angle_valid_sp;   // 角度有效
 extern volatile uint8_t angle_valid_el;
 extern volatile float pos_x;
+extern volatile float pos_y;
 
 typedef struct {
     uint32_t angle;
