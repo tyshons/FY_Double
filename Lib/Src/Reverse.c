@@ -8,53 +8,75 @@
 #include "spi.h"
 #include "Reverse.h"
 
-AngleResult res_x;
-AngleResult res_y;
+#include <string.h>
 
-void Angle_Update_Task(void)
-{
+
+float get_pos_x(void) {
+    static float last_valid_angle = 0.0f;
+    pos_x = 0;
     if (spi_xfer_done_x) {// 启动 X 轴读取
+        spi_xfer_done_x = 0;
         HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET); // 拉高使能
-        if (HAL_SPI_TransmitReceive_DMA(&hspi1, txBuffer_x, rxBuffer_x, DATA_SEQUENCE_SIZE) == HAL_OK) {
-            spi_xfer_done_x = 0;
-            data_ready_x = 0;
 
-        } else {
+        if (HAL_SPI_TransmitReceive_DMA(&hspi1,
+                                        (uint8_t *)txBuffer_x,
+                                        (uint8_t *)rxBuffer_x,
+                                        DATA_SEQUENCE_SIZE) != HAL_OK)
+        {
+            Error_Handler();
         }
     }
     if (data_ready_x) {// 解析 X 轴数据
-        res_x = Angle_Data_Processing(rxBuffer_x);
-        if (res_x.crc5 == MakeCrcPos(25, res_x.err, 0, 0, 0, res_x.angle)) {
+        //for (volatile int i = 0; i < 500; i++);
+        //printf("RX: %02X %02X %02X %02X\n", rxBuffer_x[0], rxBuffer_x[1], rxBuffer_x[2], rxBuffer_x[3]);
+        data_ready_x = 0;
+        AngleResult res_x = Angle_Data_Processing(rxBuffer_x);
+        unsigned int crc_x = MakeCrcPos(25, res_x.err, 0, 0, 0, res_x.angle);
+        if (crc_x == res_x.crc5)
+        {
             float angle_deg = (float)(res_x.angle) * 360.0f / 33554431.00f;
-            latest_angle_sp = angle_deg;
-            angle_valid_sp = 1;
-        } else {
-            angle_valid_sp = 0; // CRC 错误，标记无效
+            pos_x = angle_deg;
+            last_valid_angle = pos_x;
+        }
+        else
+        {
+            pos_x = last_valid_angle;
         }
     }
 
-    if (spi_xfer_done_y) {
-        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
-        if (HAL_SPI_TransmitReceive_DMA(&hspi2, txBuffer_y, rxBuffer_y, DATA_SEQUENCE_SIZE) == HAL_OK) {
-            spi_xfer_done_y = 0;
-            data_ready_y = 0;
-        } else {
+    return pos_x;
+}
+
+float get_pos_y(void){
+
+    float pos_y = 0;
+    if (spi_xfer_done_y) {// 启动 X 轴读取
+        spi_xfer_done_y = 0;
+        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET); // 拉高使能
+        if (HAL_SPI_TransmitReceive_DMA(&hspi2,
+                                        (uint8_t *)txBuffer_y,
+                                        (uint8_t *)rxBuffer_y,
+                                        DATA_SEQUENCE_SIZE) != HAL_OK)
+        {
+            Error_Handler();
         }
-    } else {
-
-            }
-
-    if (data_ready_y) {
-        res_y = Angle_Data_Processing(rxBuffer_y);
-        if (res_y.crc5 == MakeCrcPos(25, res_y.err, 0, 0, 0, res_y.angle)) {
+    }
+    if (data_ready_y) {// 解析 X 轴数据
+        data_ready_y = 0;
+        AngleResult res_y = Angle_Data_Processing(rxBuffer_y);
+        unsigned int crc_y = MakeCrcPos(25, res_y.err, 0, 0, 0, res_y.angle);
+        if (crc_y == res_y.crc5)
+        {
             float angle_deg = (float)(res_y.angle) * 360.0f / 33554431.00f;
-            latest_angle_el = angle_deg;
-            angle_valid_el = 1;
-        } else {
-            angle_valid_el = 0;
+            pos_y = angle_deg;
         }
-
+        else
+        {
+            biaozhi = 1; // CRC 错误，标记无效
+        }
     }
+
+    return pos_y;
 }
 
 

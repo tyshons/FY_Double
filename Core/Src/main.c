@@ -62,7 +62,7 @@ typedef struct {
 /* USER CODE BEGIN PV */
 uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
 uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
+volatile uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
 uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
 volatile uint8_t spi_xfer_done_x = 1;
 volatile uint8_t spi_xfer_done_y = 1;
@@ -71,10 +71,9 @@ volatile uint8_t sck_edge_count_y = 0;
 volatile uint8_t data_ready_x = 0;
 volatile uint8_t data_ready_y = 0;
 
-volatile float latest_angle_sp = 0.0f; // 水平轴最新有效角度
-volatile float latest_angle_el = 0.0f; // 俯仰轴最新有效角度
-volatile uint8_t angle_valid_sp = 0;   // 角度有效
-volatile uint8_t angle_valid_el = 0;
+volatile float pos_x=0;
+
+uint8_t biaozhi = 0;
 
 // 水平轴（motor_id = 1）
 float last_angle_sp = 0.0f;
@@ -114,7 +113,6 @@ float get_signed_angle_error(float target_angle, float current_angle);
 float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4]);
 float position_pid(float error, pid_state_t* state, const float num[4], const float den[4]);
 void UART1_DATA_PRO(void);
-float get_pos_pitch(void); // 新增：获取俯仰角度
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -153,20 +151,18 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
-  MX_SPI2_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
-  MX_TIM5_Init();
   MX_TIM8_Init();
-  MX_TIM4_Init();
+  MX_SPI2_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   motor_init();
   pid_init();
   set_speedpara(speed_num, speed_den);
   set_pospara(pos_num, pos_den);
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_1);
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
   /* USER CODE END 2 */
@@ -178,7 +174,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    Angle_Update_Task();
+
+    //current_angle_sp = get_pos_x();
+    //printf("Angle: %d\n", current_angle_sp);
+    //HAL_Delay(500);
+    // printf("SPI1 TX DMA State: %d\n", hspi1.hdmatx->State);
+    // printf("SPI1 RX DMA State: %d\n", hspi1.hdmarx->State);
   }
   /* USER CODE END 3 */
 }
@@ -284,7 +285,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     position_counter++;
     if (position_counter >= 20) // 50Hz
     {
-      UART1_DATA_PRO();
+
       position_counter = 0;
 
       if (abs(pixel_error) > 5)
@@ -295,17 +296,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 
         // 获取当前角度
-    if (angle_valid_sp) {
-      current_angle_sp = latest_angle_sp;
-    }
-
-    if (angle_valid_el) {
-      current_angle_el = latest_angle_el;
-    }
+    current_angle_sp = get_pos_x();
+    //current_angle_el = get_pos_y();
+    int deg = (int)current_angle_sp;
+    int dec = (int)((current_angle_sp - deg) * 1000);
+    printf("Angle: %d.%d\r\n", deg, dec);
 
         // 速度估计（deg/s）
     h_speed_sp = Updatespeed(current_angle_sp, &last_angle_sp, &last_time_sp);
-    h_speed_el = Updatespeed(current_angle_el, &last_angle_el, &last_time_el);
+    //h_speed_el = Updatespeed(current_angle_el, &last_angle_el, &last_time_el);
 
         // 水平轴控制
     position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
@@ -314,14 +313,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     motor_pwm_set(1, pidout_sp); // motor_id=1: 水平
 
         // 俯仰轴控制
-    position_error_el = get_signed_angle_error(given_el, current_angle_el);
-    speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
-    float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
-    motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
+   // position_error_el = get_signed_angle_error(given_el, current_angle_el);
+   // speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
+   // float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
+    //motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
 
         // 打印水平轴状态
-    float wgeiding_sp = (current_angle_sp > 180) ? current_angle_sp - 360.0f : current_angle_sp;
-    printf("%.3f,%.3f,%.3f\r\n", wgeiding_sp, given_sp - wgeiding_sp, given_sp);
+    //float wgeiding_sp = (current_angle_sp > 180) ? current_angle_sp - 360.0f : current_angle_sp;
+    //printf("%.3f,%.3f,%.3f\r\n", wgeiding_sp, given_sp - wgeiding_sp, given_sp);
   }
 }
 
@@ -377,30 +376,6 @@ float speed_pid(float speed_error, pid_state_t* state, const float num[4], const
   return out;
 }
 
-void UART1_DATA_PRO(void)
-{
-  uint16_t rx_status = uart_get_rx_status();
-  if ((rx_status & 0x8000) == 0)
-  {
-    return;
-  }
-
-  uint8_t len_temp = rx_status & 0x3fff;
-  uart_clear_rx_status();
-
-  if (len_temp == 5 &&
-      g_usart_rx_buf[0] == 0xA5 &&
-      g_usart_rx_buf[1] == 0x5A)
-  {
-    uint8_t biaozhi2;
-    memcpy(&biaozhi2, &g_usart_rx_buf[2], sizeof(uint8_t));
-    memcpy(&pixel_error, &g_usart_rx_buf[3], sizeof(int16_t));
-    if (biaozhi2 == 0)
-    {
-      pixel_error = -pixel_error;
-    }
-  }
-}
 /* USER CODE END 4 */
 
 /**
