@@ -18,6 +18,13 @@ static const MotorConfig_TypeDef motor_configs[2] = {
     {&htim8, TIM_CHANNEL_1}
 };
 
+
+/**
+ * @brief 初始化电机
+ *
+ * 分别初始化俯仰电机（ID=0）和水平电机（ID=1），
+ * 包括停止、启动和设置初始速度为0。
+ */
 void motor_init(void)
 {
     motor_stop(0);             // 初始化俯仰电机
@@ -29,6 +36,13 @@ void motor_init(void)
     motor_set(1, 0, 0);
 }
 
+/**
+ * @brief 启动指定电机
+ *
+ * 根据电机ID启用对应的电机驱动信号。
+ *
+ * @param motor_id 电机ID（0或1）
+ */
 void motor_start(uint8_t motor_id)
 {
     if (motor_id == 0) {
@@ -39,6 +53,13 @@ void motor_start(uint8_t motor_id)
     }
 }
 
+/**
+ * @brief 停止指定电机
+ *
+ * 根据电机ID停止PWM输出并禁用电机驱动信号。
+ *
+ * @param motor_id 电机ID（0或1）
+ */
 void motor_stop(uint8_t motor_id)
 {
     if (motor_id == 0) {
@@ -55,7 +76,15 @@ void motor_stop(uint8_t motor_id)
     }
 }
 
-
+/**
+ * @brief 设置电机PWM参数
+ *
+ * 根据电机ID、方向参数和速度值设置PWM输出。
+ *
+ * @param motor_id 电机ID（0或1）
+ * @param para 方向参数（0：正转，1：反转）
+ * @param motor_speed PWM设置占空比值
+ */
 void motor_set(uint8_t motor_id, uint8_t para, uint16_t motor_speed)
 {
     if (motor_id >= 2) return;
@@ -77,7 +106,14 @@ void motor_set(uint8_t motor_id, uint8_t para, uint16_t motor_speed)
     }
 }
 
-
+/**
+ * @brief 设置电机PWM占空比
+ *
+ * 接收浮点数形式的速度参数，根据正负值决定方向并调用 [motor_set]设置PWM。
+ *
+ * @param motor_id 电机ID（0或1）
+ * @param para 浮点数形式的速度参数（正值：正转，负值：反转）
+ */
 void motor_pwm_set(uint8_t motor_id, float para)
 {
     int speed = (int)para;

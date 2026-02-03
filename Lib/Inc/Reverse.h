@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #define DATA_SEQUENCE_SIZE 6
-#define SCK_EDGES_TO_CAPTURE 10  // 捕获10个上升沿后切换方向
+#define SCK_EDGES_TO_CAPTURE 10
 
 static const unsigned char  BitReverseTable256[] =
 {
@@ -36,17 +36,8 @@ extern volatile uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] ;
 extern volatile uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] ;
 extern volatile uint8_t spi_xfer_done_x ;
 extern volatile uint8_t spi_xfer_done_y ;
-extern volatile uint8_t sck_edge_count_x ; // SCK上升沿计数器
-extern volatile uint8_t sck_edge_count_y;
 extern volatile uint8_t data_ready_x ;
 extern volatile uint8_t data_ready_y ;
-extern uint8_t biaozhi;
-extern uint8_t crc_error;
-
-extern volatile float latest_angle_sp; // 水平轴最新有效角度
-extern volatile float latest_angle_el; // 俯仰轴最新有效角度
-extern volatile uint8_t angle_valid_sp;   // 角度有效
-extern volatile uint8_t angle_valid_el;
 extern volatile float pos_x;
 extern volatile float pos_y;
 
@@ -58,6 +49,6 @@ typedef struct {
 
 float get_pos_x(void);
 float get_pos_y(void);
-AngleResult Angle_Data_Processing(uint8_t *buffer);
+AngleResult Angle_Data_Processing(volatile uint8_t *buffer);
 
-#endif //REVERSE_H
+#endif

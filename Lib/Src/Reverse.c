@@ -2,22 +2,28 @@
 // Created by tyshon on 25-8-5.
 //
 
-#include <stdio.h>
 #include "crc.h"
 #include "main.h"
 #include "spi.h"
 #include "Reverse.h"
-
 #include <string.h>
 
-
+/**
+ * @brief 获取X，Y轴角度位置
+ *
+ * 此函数通过SPI通信读取X轴的角度数据，并进行解析和校验。
+ * 如果CRC校验失败，则返回上一次有效的角度值。
+ *
+ * @return 返回当前X轴的角度值（单位：度）
+ */
 float get_pos_x(void) {
     static float last_valid_angle_x = 0.0f;
     pos_x = 0;
-    if (spi_xfer_done_x) {// 启动 X 轴读取
+    if (spi_xfer_done_x) {
         spi_xfer_done_x = 0;
-        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET); // 拉高使能
+        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
 
+        // 使用DMA方式发送和接收数据
         if (HAL_SPI_TransmitReceive_DMA(&hspi1,
                                         (uint8_t *)txBuffer_x,
                                         (uint8_t *)rxBuffer_x,
@@ -26,9 +32,7 @@ float get_pos_x(void) {
             Error_Handler();
         }
     }
-    if (data_ready_x) {// 解析 X 轴数据
-        //for (volatile int i = 0; i < 500; i++);
-        //printf("RX: %02X %02X %02X %02X\n", rxBuffer_x[0], rxBuffer_x[1], rxBuffer_x[2], rxBuffer_x[3]);
+    if (data_ready_x) {
         data_ready_x = 0;
         AngleResult res_x = Angle_Data_Processing(rxBuffer_x);
         unsigned int crc_x = MakeCrcPos(25, res_x.err, 0, 0, 0, res_x.angle);
@@ -50,9 +54,9 @@ float get_pos_x(void) {
 float get_pos_y(void) {
     static float last_valid_angle_y = 0.0f;
     pos_y = 0;
-    if (spi_xfer_done_y) {// 启动 X 轴读取
+    if (spi_xfer_done_y) {
         spi_xfer_done_y = 0;
-        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET); // 拉高使能
+        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
 
         if (HAL_SPI_TransmitReceive_DMA(&hspi2,
                                         (uint8_t *)txBuffer_y,
@@ -62,9 +66,7 @@ float get_pos_y(void) {
             Error_Handler();
         }
     }
-    if (data_ready_y) {// 解析 X 轴数据
-        //for (volatile int i = 0; i < 500; i++);
-        //printf("RX: %02X %02X %02X %02X\n", rxBuffer_x[0], rxBuffer_x[1], rxBuffer_x[2], rxBuffer_x[3]);
+    if (data_ready_y) {
         data_ready_y = 0;
         AngleResult res_y = Angle_Data_Processing(rxBuffer_y);
         unsigned int crc_y = MakeCrcPos(25, res_y.err, 0, 0, 0, res_y.angle);
@@ -83,8 +85,16 @@ float get_pos_y(void) {
     return pos_y;
 }
 
-
-AngleResult Angle_Data_Processing(uint8_t *buffer)
+/**
+ * @brief 处理角度数据缓冲区
+ *
+ * 此函数对接收到的原始数据进行位反转和解析，
+ * 提取出角度值和错误标志，并计算CRC校验值。
+ *
+ * @param buffer 输入的原始数据缓冲区
+ * @return 返回解析后的角度结果结构体
+ */
+AngleResult Angle_Data_Processing(volatile uint8_t *buffer)
 {
     AngleResult result = {0};
     const uint8_t original_buffer5 = buffer[5];

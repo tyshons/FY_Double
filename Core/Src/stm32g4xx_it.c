@@ -67,7 +67,8 @@ extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
-
+extern volatile uint8_t sck_edge_count_x ; // SCK上升沿计数器
+extern volatile uint8_t sck_edge_count_y;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -306,8 +307,7 @@ void TIM2_IRQHandler(void)
 
       sck_edge_count_x++;
 
-      if (sck_edge_count_x == 12) {
-        // 捕获到10个上升沿后拉低EN（切换为接收方向）
+      if (sck_edge_count_x == SCK_EDGES_TO_CAPTURE) {
         HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET);
         sck_edge_count_x = 0;
       }
@@ -362,8 +362,7 @@ void TIM5_IRQHandler(void)
 
       sck_edge_count_y++;
 
-      if (sck_edge_count_y == 12) {
-        // 捕获到10个上升沿后拉低EN（切换为接收方向）
+      if (sck_edge_count_y == SCK_EDGES_TO_CAPTURE) {
         HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET);
         sck_edge_count_y = 0;
       }

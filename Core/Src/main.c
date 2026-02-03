@@ -96,7 +96,7 @@ int16_t pixel_error = 0;
 static uint16_t position_counter = 0;
 extern uint8_t g_run_flag;
 
-// 控制器参数（两个轴共用同一组，也可拆开）
+// 控制器参数（双轴可拆分）
 float speed_num[4], speed_den[4];
 float pos_num[4], pos_den[4];
 
@@ -113,7 +113,7 @@ float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time);
 float get_signed_angle_error(float target_angle, float current_angle);
 float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4]);
 float position_pid(float error, pid_state_t* state, const float num[4], const float den[4]);
-void UART1_DATA_PRO(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -176,11 +176,6 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    //current_angle_sp = get_pos_x();
-    //printf("Angle: %d\n", current_angle_sp);
-    //HAL_Delay(500);
-    // printf("SPI1 TX DMA State: %d\n", hspi1.hdmatx->State);
-    // printf("SPI1 RX DMA State: %d\n", hspi1.hdmarx->State);
   }
   /* USER CODE END 3 */
 }
@@ -232,7 +227,13 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-
+/**
+  * @brief 速度估算函数
+  * @param current_angle 当前角度
+  * @param last_angle 上一时刻角度指针
+  * @param last_time 上一时刻时间戳指针
+  * @return 估算速度（转/min）
+  */
 float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time)
 {
   uint32_t current_time_ms = HAL_GetTick();
@@ -249,13 +250,19 @@ float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time)
   if (delta_angle > 180.0f) delta_angle -= 360.0f;
   else if (delta_angle < -180.0f) delta_angle += 360.0f;
 
-  const float rpm = delta_angle / (time*6.0f); // deg/s
+  const float rpm = delta_angle / (time*6.0f); //  转/min
 
   *last_time = current_time_ms;
   *last_angle = current_angle;
   return rpm;
 }
 
+/**
+  * @brief 获取带符号的角度误差
+  * @param target 目标角度
+  * @param current 当前角度
+  * @return 带符号的角度误差（-180° ~ 180°）
+  */
 float get_signed_angle_error(float target, float current)
 {
   float error = target - current;
@@ -264,6 +271,10 @@ float get_signed_angle_error(float target, float current)
   return error;
 }
 
+/**
+  * @brief SPI传输完成回调函数
+  * @param hspi SPI句柄
+  */
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   if (hspi->Instance == SPI1)
@@ -277,6 +288,12 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
   }
 }
 
+/**
+  * @brief 定时器3周期中断回调函数1000Hz
+  *
+  * 完成对于转台的所有控制逻辑
+  *
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   static uint32_t last_time_sp = 0, last_time_el = 0;
@@ -286,7 +303,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     position_counter++;
     if (position_counter >= 20) // 50Hz
     {
-
       position_counter = 0;
 
       if (abs(pixel_error) > 5)
@@ -299,11 +315,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         // 获取当前角度
     current_angle_sp = get_pos_x();
     current_angle_el = get_pos_y();
-    // int deg = (int)current_angle_el;
-    // int dec = (int)((current_angle_el - deg) * 1000);
-    // printf("Angle: %d.%d\r\n", deg, dec);
 
-        // 速度估计（deg/s）
+        // 速度估计（转/min）
     h_speed_sp = Updatespeed(current_angle_sp, &last_angle_sp, &last_time_sp);
     h_speed_el = Updatespeed(current_angle_el, &last_angle_el, &last_time_el);
 
@@ -319,12 +332,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
     //motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
 
-        // 打印水平轴状态
-    //float wgeiding_sp = (current_angle_sp > 180) ? current_angle_sp - 360.0f : current_angle_sp;
-    //printf("%.3f,%.3f,%.3f\r\n", wgeiding_sp, given_sp - wgeiding_sp, given_sp);
   }
 }
 
+/**
+  * @brief 位置环PID控制器
+  * @param error 输入误差
+  * @param state PID状态结构体
+  * @param num 传递函数分子系数
+  * @param den 传递函数分母系数
+  * @return PID输出值
+  */
 float position_pid(float error, pid_state_t* state, const float num[4], const float den[4])
 {
   float in = error;
@@ -349,6 +367,14 @@ float position_pid(float error, pid_state_t* state, const float num[4], const fl
   return out;
 }
 
+/**
+  * @brief 速度环PID控制器
+  * @param speed_error 速度误差
+  * @param state PID状态结构体
+  * @param num 传递函数分子系数
+  * @param den 传递函数分母系数
+  * @return PID输出值（限幅后）
+  */
 float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4])
 {
   float in = speed_error;
@@ -361,7 +387,7 @@ float speed_pid(float speed_error, pid_state_t* state, const float num[4], const
       den[2] * state->out_prev[1] +
       den[3] * state->out_prev[2];
 
-  // 输出限幅（±8400 对应 PWM）
+  // 输出限幅（±8400  对应PWM）
   if (out > 8400.0f) out = 8400.0f;
   if (out < -8400.0f) out = -8400.0f;
 
