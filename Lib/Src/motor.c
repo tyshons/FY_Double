@@ -13,11 +13,7 @@ typedef struct {
     uint32_t channel;
 } MotorConfig_TypeDef;
 
-static const MotorConfig_TypeDef motor_configs[2] = {
-    {&htim1, TIM_CHANNEL_1},
-    {&htim8, TIM_CHANNEL_1}
-};
-
+static MotorConfig_TypeDef motor_configs[2];
 
 /**
  * @brief 初始化电机
@@ -27,6 +23,11 @@ static const MotorConfig_TypeDef motor_configs[2] = {
  */
 void motor_init(void)
 {
+    motor_configs[0].htim = &htim1;
+    motor_configs[0].channel = TIM_CHANNEL_1;
+    motor_configs[1].htim = &htim8;
+    motor_configs[1].channel = TIM_CHANNEL_1;
+
     motor_stop(0);             // 初始化俯仰电机
     motor_start(0);
     motor_set(0, 0, 0);
@@ -114,9 +115,9 @@ void motor_set(uint8_t motor_id, uint8_t para, uint16_t motor_speed)
  * @param motor_id 电机ID（0或1）
  * @param para 浮点数形式的速度参数（正值：正转，负值：反转）
  */
-void motor_pwm_set(uint8_t motor_id, float para)
+void motor_pwm_set(const uint8_t motor_id, const float para)
 {
-    int speed = (int)para;
+    const int speed = (int)para;
 
     if (motor_id == 0)
     {

@@ -26,15 +26,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h> // for sinf
-
-#include "Reverse.h"
+#include <math.h>
+#include "posUpdate.h"
 #include "motor.h"
 #include "pid.h"
 #include "setpara.h"
+#include "sweep.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,9 +46,7 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DATA_SEQUENCE_SIZE 6
-#define POSITION_UPDATE_INTERVAL_S 0.001f
-#define CONTROL_PERIOD 0.001f
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,38 +57,27 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t txBuffer_x[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-uint8_t txBuffer_y[DATA_SEQUENCE_SIZE] = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-volatile uint8_t rxBuffer_x[DATA_SEQUENCE_SIZE] = {0};
-volatile uint8_t rxBuffer_y[DATA_SEQUENCE_SIZE] = {0};
-volatile uint8_t spi_xfer_done_x = 1;
-volatile uint8_t spi_xfer_done_y = 1;
-volatile uint8_t sck_edge_count_x = 0;
-volatile uint8_t sck_edge_count_y = 0;
-volatile uint8_t data_ready_x = 0;
-volatile uint8_t data_ready_y = 0;
-
-volatile float pos_x=0;
-volatile float pos_y=0;
-
-uint8_t biaozhi = 0;
 
 // 水平轴（motor_id = 1）
-float last_angle_sp = 0.0f;
 float current_angle_sp = 0.0f;
-float h_speed_sp = 0.0f;
+float current_speed_sp = 0.0f;
 float given_sp = 180.0f;
 float speed_given_sp = 0.0f;
 float position_error_sp = 0.0f;
 
-// 俯仰轴（motor_id = 0）=====
-float last_angle_el = 0.0f;
+// 俯仰轴（motor_id = 0）
 float current_angle_el = 0.0f;
-float h_speed_el = 0.0f;
+float current_speed_el = 0.0f;
 float given_el = 75.0f;
 float speed_given_el = 0.0f;
 float position_error_el = 0.0f;
 
+//扫频用
+float sweep_speed_set;
+float sweep_freq_global = 0.5f;
+uint8_t ctrl_mode = 1;
+
+//图像用
 int16_t pixel_error = 0;
 static uint16_t position_counter = 0;
 extern uint8_t g_run_flag;
@@ -109,7 +95,6 @@ pid_state_t spd_pid_el = {0}; // 俯仰轴速度环状态
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time);
 float get_signed_angle_error(float target_angle, float current_angle);
 float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4]);
 float position_pid(float error, pid_state_t* state, const float num[4], const float den[4]);
@@ -228,110 +213,62 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 /**
-  * @brief 速度估算函数
-  * @param current_angle 当前角度
-  * @param last_angle 上一时刻角度指针
-  * @param last_time 上一时刻时间戳指针
-  * @return 估算速度（转/min）
-  */
-float Updatespeed(float current_angle, float* last_angle, uint32_t* last_time)
-{
-  uint32_t current_time_ms = HAL_GetTick();
-  if (*last_time == 0) {
-    *last_time = current_time_ms;
-    *last_angle = current_angle;
-    return 0.0f;
-  }
-
-  float time = (current_time_ms - *last_time) / 1000.0f;
-  if (time < 0.001f) time = 0.001f;
-
-  float delta_angle = current_angle - *last_angle;
-  if (delta_angle > 180.0f) delta_angle -= 360.0f;
-  else if (delta_angle < -180.0f) delta_angle += 360.0f;
-
-  const float rpm = delta_angle / (time*6.0f); //  转/min
-
-  *last_time = current_time_ms;
-  *last_angle = current_angle;
-  return rpm;
-}
-
-/**
   * @brief 获取带符号的角度误差
-  * @param target 目标角度
-  * @param current 当前角度
+  * @param target_angle 目标角度
+  * @param current_angle 当前角度
   * @return 带符号的角度误差（-180° ~ 180°）
   */
-float get_signed_angle_error(float target, float current)
+float get_signed_angle_error(const float target_angle, const float current_angle)
 {
-  float error = target - current;
+  float error = target_angle - current_angle;
   while (error > 180.0f) error -= 360.0f;
   while (error < -180.0f) error += 360.0f;
   return error;
 }
 
 /**
-  * @brief SPI传输完成回调函数
-  * @param hspi SPI句柄
-  */
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-  if (hspi->Instance == SPI1)
-  {
-    spi_xfer_done_x = 1;
-    data_ready_x = 1;
-  }
-  if (hspi->Instance == SPI2) {
-    spi_xfer_done_y = 1;
-    data_ready_y = 1;
-  }
-}
-
-/**
   * @brief 定时器3周期中断回调函数1000Hz
   *
-  * 完成对于转台的所有控制逻辑
+  * 完成对于转台的所有控制逻辑,通过ctrl_mode切换扫频
   *
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  static uint32_t last_time_sp = 0, last_time_el = 0;
-
   if (htim->Instance == TIM3) // 1000Hz
   {
-    position_counter++;
-    if (position_counter >= 20) // 50Hz
-    {
-      position_counter = 0;
+    // 获取当前角度
+    current_angle_sp = get_pos_x(&current_speed_sp);
+    current_angle_el = get_pos_y(&current_speed_el);
 
-      if (abs(pixel_error) > 5)
+    if (ctrl_mode == 0)
+    {
+      position_counter++;
+      if (position_counter >= 20) // 50Hz
       {
-        float correction = 0.002f * pixel_error;
-        given_sp += correction;
+        position_counter = 0;
+        if (abs(pixel_error) > 5)
+        {
+          const float correction = 0.002f * (float)pixel_error;
+          given_sp += correction;
+        }
       }
+      // 水平轴控制
+      position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
+      speed_given_sp = position_pid(position_error_sp,&pos_pid_sp, pos_num, pos_den);
+      const float pidOut_sp = speed_pid((speed_given_sp - current_speed_sp), &spd_pid_sp, speed_num, speed_den);
+      motor_pwm_set(1, pidOut_sp); // motor_id=1: 水平
+      // 俯仰轴控制
+      position_error_el = get_signed_angle_error(given_el, current_angle_el);
+      speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
+      const float pidOut_el = speed_pid((speed_given_el - current_speed_el), &spd_pid_el, speed_num, speed_den);
+      motor_pwm_set(0, pidOut_el); // motor_id=0: 俯仰
     }
 
-        // 获取当前角度
-    current_angle_sp = get_pos_x();
-    current_angle_el = get_pos_y();
-
-        // 速度估计（转/min）
-    h_speed_sp = Updatespeed(current_angle_sp, &last_angle_sp, &last_time_sp);
-    h_speed_el = Updatespeed(current_angle_el, &last_angle_el, &last_time_el);
-
-        // 水平轴控制
-    position_error_sp = get_signed_angle_error(given_sp, current_angle_sp);
-    speed_given_sp = position_pid(position_error_sp,&pos_pid_sp, pos_num, pos_den);
-    float pidout_sp = speed_pid(speed_given_sp - h_speed_sp, &spd_pid_sp, speed_num, speed_den);
-    motor_pwm_set(1, pidout_sp); // motor_id=1: 水平
-
-        // 俯仰轴控制
-    position_error_el = get_signed_angle_error(given_el, current_angle_el);
-    speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
-    float pidout_el = speed_pid(speed_given_el - h_speed_el, &spd_pid_el, speed_num, speed_den);
-    //motor_pwm_set(0, pidout_el); // motor_id=0: 俯仰
-
+    if (ctrl_mode == 1)
+    {
+      sweep_function(1, sweep_freq_global, 20.0f, 4000,
+                    30);
+    }
   }
 }
 
@@ -343,10 +280,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   * @param den 传递函数分母系数
   * @return PID输出值
   */
-float position_pid(float error, pid_state_t* state, const float num[4], const float den[4])
+float position_pid(const float error, pid_state_t* state, const float num[4], const float den[4])
 {
-  float in = error;
-  float out =
+  const float in = error;
+  const float out =
       num[0] * in +
       num[1] * state->in_prev[0] +
       num[2] * state->in_prev[1] +
@@ -375,9 +312,9 @@ float position_pid(float error, pid_state_t* state, const float num[4], const fl
   * @param den 传递函数分母系数
   * @return PID输出值（限幅后）
   */
-float speed_pid(float speed_error, pid_state_t* state, const float num[4], const float den[4])
+float speed_pid(const float speed_error, pid_state_t* state, const float num[4], const float den[4])
 {
-  float in = speed_error;
+  const float in = speed_error;
   float out =
       num[0] * in +
       num[1] * state->in_prev[0] +

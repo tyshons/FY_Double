@@ -8,7 +8,6 @@
 #include <stdint.h>
 
 #define DATA_SEQUENCE_SIZE 6
-#define SCK_EDGES_TO_CAPTURE 10
 
 static const unsigned char  BitReverseTable256[] =
 {
@@ -38,8 +37,6 @@ extern volatile uint8_t spi_xfer_done_x ;
 extern volatile uint8_t spi_xfer_done_y ;
 extern volatile uint8_t data_ready_x ;
 extern volatile uint8_t data_ready_y ;
-extern volatile float pos_x;
-extern volatile float pos_y;
 
 typedef struct {
     uint32_t angle;
@@ -47,8 +44,8 @@ typedef struct {
     uint8_t  err;
 } AngleResult;
 
-float get_pos_x(void);
-float get_pos_y(void);
+float get_pos_x(float* out_speed);
+float get_pos_y(float* out_speed);
 AngleResult Angle_Data_Processing(volatile uint8_t *buffer);
 
 #endif

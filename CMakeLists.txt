@@ -37,8 +37,10 @@ add_executable(${CMAKE_PROJECT_NAME}
         Lib/Src/motor.c
         Lib/Src/pid.c
         Lib/Src/crc.c
-        Lib/Src/Reverse.c
+        Lib/Src/posUpdate.c
         Lib/Src/setpara.c
+        Lib/Src/sweep.c
+        Lib/Inc/sweep.h
 )
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
