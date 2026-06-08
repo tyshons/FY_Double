@@ -28,7 +28,6 @@
 /* USER CODE BEGIN Includes */
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include "posUpdate.h"
 #include "motor.h"
 #include "pid.h"
@@ -66,16 +65,16 @@ float speed_given_sp = 0.0f;
 float position_error_sp = 0.0f;
 
 // 俯仰轴（motor_id = 0）
-float current_angle_el = 0.0f;
+float current_angle_el = 75.0f;
 float current_speed_el = 0.0f;
-float given_el = 75.0f;
+float given_el = 80.0f;
 float speed_given_el = 0.0f;
 float position_error_el = 0.0f;
 
 //扫频用
 float sweep_speed_set;
 float sweep_freq_global = 0.5f;
-uint8_t ctrl_mode = 1;
+uint8_t ctrl_mode = 0;
 
 //图像用
 int16_t pixel_error = 0;
@@ -85,6 +84,8 @@ extern uint8_t g_run_flag;
 // 控制器参数（双轴可拆分）
 float speed_num[4], speed_den[4];
 float pos_num[4], pos_den[4];
+float speed_num_el[4], speed_den_el[4];
+float pos_num_el[4], pos_den_el[4];
 
 pid_state_t pos_pid_sp = {0}; // 水平轴位置环状态
 pid_state_t pos_pid_el = {0}; // 俯仰轴位置环状态
@@ -148,6 +149,8 @@ int main(void)
   pid_init();
   set_speedpara(speed_num, speed_den);
   set_pospara(pos_num, pos_den);
+  set_speedpara_fy(speed_num_el, speed_den_el);
+  set_pospara_fy(pos_num_el, pos_den_el);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_1);
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
@@ -260,13 +263,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       // 俯仰轴控制
       position_error_el = get_signed_angle_error(given_el, current_angle_el);
       speed_given_el = position_pid(position_error_el, &pos_pid_el, pos_num, pos_den);
-      const float pidOut_el = speed_pid((speed_given_el - current_speed_el), &spd_pid_el, speed_num, speed_den);
+      const float pidOut_el = speed_pid((speed_given_el - current_speed_el), &spd_pid_el, speed_num_el, speed_den_el);
       motor_pwm_set(0, pidOut_el); // motor_id=0: 俯仰
     }
 
     if (ctrl_mode == 1)
     {
-      sweep_function(1, sweep_freq_global, 20.0f, 4000,
+      sweep_function(0, sweep_freq_global, 20.0f, 2000,
                     30);
     }
   }

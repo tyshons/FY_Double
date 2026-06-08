@@ -7,6 +7,8 @@
 
 int set_speedpara(float* num, float* den);
 int set_pospara(float* num, float* den);
+int set_pospara_fy(float* num, float* den);
+int set_speedpara_fy(float* num, float* den);
 
 
 #endif //FY_DOUBLE_SETPARA_H
